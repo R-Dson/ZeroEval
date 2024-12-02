@@ -497,5 +497,5 @@ if __name__ == "__main__":
                 "messages": ollama_msg,
             }
             response = client.chat(**ollama_args)
-            outputs.append(response['message']['content'])
+            outputs.append([response['message']['content']])
             save_outputs(args, id_strs, outputs, chat_history, metadata, model_inputs, filepath)
