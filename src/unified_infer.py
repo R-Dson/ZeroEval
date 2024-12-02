@@ -486,7 +486,7 @@ if __name__ == "__main__":
         for cur_id in tqdm(range(0, len(todo_inputs)), desc=f"Generating {args.model_name} from {args.start_index} to {args.end_index} on {args.data_name}"):
             # input_text = todo_inputs[cur_id]
             chat = todo_chats[cur_id]
-            ollama_msg = []
+            ollama_msg = [{"role":"system", "content":"You are a helpful AI assistant."}]
             for i, chat_item in enumerate(chat):
                 if i % 2 == 0:
                     ollama_msg.append({"role":"user","content": chat_item})
@@ -495,6 +495,13 @@ if __name__ == "__main__":
             ollama_args = {
                 "model": args.model_name,
                 "messages": ollama_msg,
+                "options": {
+                    "top_p": args.top_p,
+                    "temperature": args.temperature,
+                    "max_tokens": args.max_tokens,
+                    "stop": stop_words,
+                    "max_tokens": args.max_tokens,
+                }
             }
             response = client.chat(**ollama_args)
             outputs.append([response['message']['content']])
