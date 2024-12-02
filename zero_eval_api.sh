@@ -3,9 +3,9 @@
 # model_name=$3
 # model_pretty_name=$4
 # n_shards=$5
-# # default cot to be True 
+# # default cot to be True
 # cot=${6:-True}
-# TEMP=0; TOP_P=1.0; 
+# TEMP=0; TOP_P=1.0;
 
 # Initialize default values
 DATA_NAME=""
@@ -17,11 +17,12 @@ TEMP=0
 TOP_P=1.0
 rp=1.0
 engine_name="openai"
-MAX_TOKENS=4096; 
+MAX_TOKENS=4096;
 num_outputs=1  # New default value
+ollama_url=""  # Initialize ollama_url
 
 # Parse named arguments
-while getopts ":d:m:p:s:r:t:o:e:f:b:x:n:" opt; do  # Added 'n' for num_outputs
+while getopts ":d:m:p:s:r:t:o:e:f:b:x:n:u:" opt; do
   case $opt in
     d) DATA_NAME="$OPTARG"
     ;;
@@ -47,6 +48,8 @@ while getopts ":d:m:p:s:r:t:o:e:f:b:x:n:" opt; do  # Added 'n' for num_outputs
     ;;
     n) num_outputs="$OPTARG"  # New case for num_outputs
     ;;
+    u) ollama_url="$OPTARG"  # New case for ollama_url
+    ;;
     \?) echo "Invalid option -$OPTARG" >&2
     ;;
   esac
@@ -54,24 +57,19 @@ done
 
 # Check if required arguments are provided
 if [ -z "$DATA_NAME" ] || [ -z "$model_name" ] || [ -z "$model_pretty_name" ] || [ -z "$n_shards" ]; then
-  echo "Usage: $0 -d DATA_NAME -m model_name -p model_pretty_name -s n_shards [-r run_name] [-t TEMP] [-o TOP_P] [-e rp] [-f engine_name] [-n num_outputs]"
+  echo "Usage: $0 -d DATA_NAME -m model_name -p model_pretty_name -s n_shards [-r run_name] [-t TEMP] [-o TOP_P] [-e rp] [-f engine_name] [-n num_outputs] [-u ollama_url]"
   exit 1
 fi
 
-
-
-
-
-batch_size=4; 
+batch_size=4;
 CACHE_DIR=${HF_HOME:-"default"}
-# output_dir="result_dirs/${DATA_NAME}/cot=${cot}/" 
+# output_dir="result_dirs/${DATA_NAME}/cot=${cot}/"
 
 if [ "$run_name" = "default" ]; then
-    output_dir="result_dirs/${DATA_NAME}/" 
+    output_dir="result_dirs/${DATA_NAME}/"
 else
-    output_dir="result_dirs/${DATA_NAME}/${run_name}/" 
+    output_dir="result_dirs/${DATA_NAME}/${run_name}/"
 fi
-
 
 # If the n_shards is 1, then we can directly run the model
 # else, use  Data-parallellism
@@ -87,11 +85,12 @@ if [ $n_shards -eq 1 ]; then
         --top_p $TOP_P --temperature $TEMP --repetition_penalty $rp \
         --batch_size $batch_size --max_tokens $MAX_TOKENS \
         --num_outputs $num_outputs \
-        --output_folder $output_dir/  
+        --output_folder $output_dir/ \
+        --ollama_url $ollama_url
 
 elif [ $n_shards -gt 1 ]; then
     echo "Using Data-parallelism"
-    start_gpu=0 
+    start_gpu=0
     shards_dir="${output_dir}/tmp_${model_pretty_name}"
     for ((shard_id = 0; shard_id < $n_shards; shard_id++, gpu++)); do
         python src/unified_infer.py \
@@ -106,13 +105,12 @@ elif [ $n_shards -gt 1 ]; then
             --batch_size $batch_size --max_tokens $MAX_TOKENS \
             --num_outputs $num_outputs \
             --output_folder $shards_dir/ \
-              &
-    done 
-    wait 
+            --ollama_url $ollama_url &
+    done
+    wait
     python src/merge_results.py $shards_dir/ $model_pretty_name
     cp $shards_dir/${model_pretty_name}.json $output_dir/${model_pretty_name}.json
 else
     echo "Invalid n_shards"
     exit
 fi
-
